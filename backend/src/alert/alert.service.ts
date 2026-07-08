@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Alert } from './alert.entity';
+import { Alert, AlertType } from './alert.entity';
 import { CreateAlertDto, UpdateAlertDto } from './alert.dto';
 
 @Injectable()
@@ -31,6 +31,13 @@ export class AlertService {
   async findByShipId(shipId: string): Promise<Alert[]> {
     return this.alertRepository.find({
       where: { shipId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findActiveAlertsByShipIdAndType(shipId: string, type: AlertType): Promise<Alert[]> {
+    return this.alertRepository.find({
+      where: { shipId, type, status: 'active' },
       order: { createdAt: 'DESC' },
     });
   }

@@ -155,35 +155,37 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
 
     const rules = await this.alertRuleService.getRulesForShip(shipId);
 
-    for (const rule of rules) {
-      if (deviation > rule.deviationThreshold) {
-        const hasActiveAlert = await this.alertService.hasActiveDeviationAlert(shipId);
+    if (rules.length === 0) {
+      return;
+    }
 
-        if (!hasActiveAlert) {
-          await this.alertService.create({
-            type: 'deviation',
-            level: rule.level,
-            title: `航线偏离告警 - ${shipName}`,
-            message: `船舶 ${shipName} (${shipCode}) 偏离航线 ${route.name}，偏离距离: ${deviation.toFixed(1)} 米，超过阈值: ${rule.deviationThreshold} 米`,
-            shipId,
-            shipName,
-            shipCode,
-            routeId: route.id,
-            routeName: route.name,
-            deviationDistance: deviation,
-            threshold: rule.deviationThreshold,
-            latitude,
-            longitude,
-            ruleId: rule.id,
-          });
-        }
-      } else {
-        const activeAlerts = await this.alertService.findByShipId(shipId);
-        for (const alert of activeAlerts) {
-          if (alert.type === 'deviation' && alert.status === 'active') {
-            await this.alertService.resolve(alert.id, 'system', '船舶已回到航线范围内');
-          }
-        }
+    const matchingRule = rules.find(rule => deviation > rule.deviationThreshold);
+
+    if (matchingRule) {
+      const hasActiveAlert = await this.alertService.hasActiveDeviationAlert(shipId);
+
+      if (!hasActiveAlert) {
+        await this.alertService.create({
+          type: 'deviation',
+          level: matchingRule.level,
+          title: `航线偏离告警 - ${shipName}`,
+          message: `船舶 ${shipName} (${shipCode}) 偏离航线 ${route.name}，偏离距离: ${deviation.toFixed(1)} 米，超过阈值: ${matchingRule.deviationThreshold} 米`,
+          shipId,
+          shipName,
+          shipCode,
+          routeId: route.id,
+          routeName: route.name,
+          deviationDistance: deviation,
+          threshold: matchingRule.deviationThreshold,
+          latitude,
+          longitude,
+          ruleId: matchingRule.id,
+        });
+      }
+    } else {
+      const activeDeviationAlerts = await this.alertService.findActiveAlertsByShipIdAndType(shipId, 'deviation');
+      for (const alert of activeDeviationAlerts) {
+        await this.alertService.resolve(alert.id, 'system', '船舶已回到航线范围内');
       }
     }
   }
