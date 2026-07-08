@@ -258,8 +258,24 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
     return JSON.parse(positionStr as string);
   }
 
+  private async scanKeys(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    let cursor = '0';
+
+    do {
+      const scanResult = await this.redisClient.scan(cursor, {
+        MATCH: pattern,
+        COUNT: 100,
+      });
+      cursor = scanResult.cursor;
+      keys.push(...scanResult.keys);
+    } while (cursor !== '0');
+
+    return keys;
+  }
+
   async getAllPositions(): Promise<any[]> {
-    const keys = await this.redisClient.keys('ship:position:*');
+    const keys = await this.scanKeys('ship:position:*');
     const positions = [];
 
     for (const key of keys) {
@@ -281,24 +297,36 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
     return historyStr.map((item) => JSON.parse(item as string)).reverse();
   }
 
-  async getDeviation(shipId: string): Promise<any> {
-    const deviationStr = await this.redisClient.get(`ship:deviation:${shipId}`);
-    if (!deviationStr) {
-      return { deviation: 0, timestamp: null };
-    }
-    return JSON.parse(deviationStr as string);
-  }
-
-  async getAllDeviations(): Promise<any[]> {
-    const keys = await this.redisClient.keys('ship:deviation:*');
+  async getDeviation(shipId: string): Promise<any[]> {
+    const keys = await this.scanKeys(`ship:deviation:${shipId}:*`);
     const deviations = [];
 
     for (const key of keys) {
       const deviationStr = await this.redisClient.get(key);
       if (deviationStr) {
-        const shipId = key.replace('ship:deviation:', '');
+        const parts = key.split(':');
         deviations.push({
           shipId,
+          routeId: parts[3],
+          ...JSON.parse(deviationStr as string),
+        });
+      }
+    }
+
+    return deviations.length > 0 ? deviations : [{ deviation: 0, timestamp: null, routeId: null }];
+  }
+
+  async getAllDeviations(): Promise<any[]> {
+    const keys = await this.scanKeys('ship:deviation:*');
+    const deviations = [];
+
+    for (const key of keys) {
+      const deviationStr = await this.redisClient.get(key);
+      if (deviationStr) {
+        const parts = key.split(':');
+        deviations.push({
+          shipId: parts[2],
+          routeId: parts[3],
           ...JSON.parse(deviationStr as string),
         });
       }

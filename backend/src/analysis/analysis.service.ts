@@ -139,10 +139,15 @@ export class AnalysisService {
     let totalDeviation = 0;
     let maxDeviation = 0;
     for (const route of routes) {
-      const routeDeviation = await this.positionService.getDeviation(route.shipId);
-      totalDeviation += routeDeviation.deviation;
-      if (routeDeviation.deviation > maxDeviation) {
-        maxDeviation = routeDeviation.deviation;
+      const routeDeviations = await this.positionService.getDeviation(route.shipId);
+      for (const rd of routeDeviations) {
+        if (rd.routeId === route.id) {
+          totalDeviation += rd.deviation;
+          if (rd.deviation > maxDeviation) {
+            maxDeviation = rd.deviation;
+          }
+          break;
+        }
       }
     }
 
@@ -182,23 +187,30 @@ export class AnalysisService {
     let alertCount = 0;
 
     for (const ship of ships) {
-      const deviation = await this.positionService.getDeviation(ship.id);
+      const deviations = await this.positionService.getDeviation(ship.id);
       const alerts = await this.alertRepository.find({ where: { shipId: ship.id } });
       const activeAlerts = alerts.filter((a) => a.status === 'active');
+
+      const deviationValues = deviations.map((d) => d.deviation || 0);
+      const currentDeviation = deviationValues.length > 0 ? Math.max(...deviationValues) : 0;
+      const avgDeviation = deviationValues.length > 0 
+        ? deviationValues.reduce((a, b) => a + b, 0) / deviationValues.length 
+        : 0;
+      const maxDeviationValue = deviationValues.length > 0 ? Math.max(...deviationValues) : 0;
 
       result.push({
         shipId: ship.id,
         shipName: ship.name,
         shipCode: ship.shipCode,
-        currentDeviation: deviation.deviation,
-        avgDeviation: deviation.deviation,
-        maxDeviation: deviation.deviation,
+        currentDeviation,
+        avgDeviation,
+        maxDeviation: maxDeviationValue,
         hasActiveAlert: activeAlerts.length > 0,
       });
 
-      totalDeviation += deviation.deviation;
-      if (deviation.deviation > maxDeviation) {
-        maxDeviation = deviation.deviation;
+      totalDeviation += currentDeviation;
+      if (currentDeviation > maxDeviation) {
+        maxDeviation = currentDeviation;
       }
       alertCount += activeAlerts.length;
     }
