@@ -2,6 +2,9 @@ import { Routes, Route, NavLink } from 'react-router-dom';
 import ShipManagement from './pages/ShipManagement';
 import RoutePlanning from './pages/RoutePlanning';
 import MapDisplay from './pages/MapDisplay';
+import AlertRuleConfig from './pages/AlertRuleConfig';
+import AlertManagement from './pages/AlertManagement';
+import AnalysisDashboard from './pages/AnalysisDashboard';
 
 function App() {
   return (
@@ -25,6 +28,21 @@ function App() {
                 地图监控
               </NavLink>
             </li>
+            <li>
+              <NavLink to="/alert-rules" className={({ isActive }) => isActive ? 'active' : ''}>
+                预警规则配置
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/alerts" className={({ isActive }) => isActive ? 'active' : ''}>
+                告警管理
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/analysis" className={({ isActive }) => isActive ? 'active' : ''}>
+                数据分析报表
+              </NavLink>
+            </li>
           </ul>
         </nav>
       </div>
@@ -33,6 +51,9 @@ function App() {
           <Route path="/ships" element={<ShipManagement />} />
           <Route path="/routes" element={<RoutePlanning />} />
           <Route path="/map" element={<MapDisplay />} />
+          <Route path="/alert-rules" element={<AlertRuleConfig />} />
+          <Route path="/alerts" element={<AlertManagement />} />
+          <Route path="/analysis" element={<AnalysisDashboard />} />
           <Route path="/" element={<ShipManagement />} />
         </Routes>
       </div>

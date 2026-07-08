@@ -25,4 +25,14 @@ export class PositionController {
   getPositionHistory(@Param('shipId') shipId: string): Promise<any[]> {
     return this.positionService.getPositionHistory(shipId);
   }
+
+  @Get(':shipId/deviation')
+  getDeviation(@Param('shipId') shipId: string): Promise<any> {
+    return this.positionService.getDeviation(shipId);
+  }
+
+  @Get('deviation/all')
+  getAllDeviations(): Promise<any[]> {
+    return this.positionService.getAllDeviations();
+  }
 }

@@ -7,6 +7,8 @@ import { redisConfig } from './config/redis.config';
 import { ShipModule } from './ship/ship.module';
 import { RouteModule } from './route/route.module';
 import { PositionModule } from './position/position.module';
+import { AlertModule } from './alert/alert.module';
+import { AnalysisModule } from './analysis/analysis.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { PositionModule } from './position/position.module';
     ShipModule,
     RouteModule,
     PositionModule,
+    AlertModule,
+    AnalysisModule,
   ],
 })
 export class AppModule {}
