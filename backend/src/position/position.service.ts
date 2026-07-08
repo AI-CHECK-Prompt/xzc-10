@@ -69,26 +69,35 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
     const R = 6371000;
     const d13 = this.calculateDistance(startLat, startLon, pointLat, pointLon);
     const d12 = this.calculateDistance(startLat, startLon, endLat, endLon);
+    const d23 = this.calculateDistance(endLat, endLon, pointLat, pointLon);
 
     if (d12 < 1) {
       return d13;
     }
 
-    const θ12 = this.calculateBearing(startLat, startLon, endLat, endLon);
-    const θ13 = this.calculateBearing(startLat, startLon, pointLat, pointLon);
+    const cosAlpha =
+      (Math.cos(d23 / R) - Math.cos(d12 / R) * Math.cos(d13 / R)) /
+      (Math.sin(d12 / R) * Math.sin(d13 / R));
 
-    const dxt = Math.asin(Math.sin(d13 / R) * Math.sin(θ13 - θ12)) * R;
-    const dat = Math.acos(Math.cos(d13 / R) / Math.cos(dxt / R)) * R;
+    const clampedCosAlpha = Math.max(-1, Math.min(1, cosAlpha));
+    const alpha = Math.acos(clampedCosAlpha);
 
-    if (dat < 0) {
+    if (alpha > Math.PI / 2) {
       return d13;
     }
 
-    if (dat > d12) {
-      return this.calculateDistance(endLat, endLon, pointLat, pointLon);
+    const cosBeta =
+      (Math.cos(d13 / R) - Math.cos(d12 / R) * Math.cos(d23 / R)) /
+      (Math.sin(d12 / R) * Math.sin(d23 / R));
+
+    const clampedCosBeta = Math.max(-1, Math.min(1, cosBeta));
+    const beta = Math.acos(clampedCosBeta);
+
+    if (beta > Math.PI / 2) {
+      return d23;
     }
 
-    return Math.abs(dxt);
+    return R * Math.asin(Math.sin(d13 / R) * Math.sin(alpha));
   }
 
   private calculateDeviationFromRoute(
@@ -134,58 +143,69 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
     const routes = await this.routeRepository.find({
       where: { shipId },
       order: { createdAt: 'DESC' },
-      take: 1,
     });
 
     if (routes.length === 0) {
       return;
     }
 
-    const route = routes[0];
-    const deviation = this.calculateDeviationFromRoute(
-      latitude,
-      longitude,
-      route.waypoints,
-    );
-
-    await this.redisClient.set(
-      `ship:deviation:${shipId}`,
-      JSON.stringify({ deviation, timestamp: new Date().toISOString() }),
-    );
-
     const rules = await this.alertRuleService.getRulesForShip(shipId);
 
-    if (rules.length === 0) {
-      return;
+    const activeRouteIds = new Set<string>();
+
+    for (const route of routes) {
+      activeRouteIds.add(route.id);
+
+      const deviation = this.calculateDeviationFromRoute(
+        latitude,
+        longitude,
+        route.waypoints,
+      );
+
+      await this.redisClient.set(
+        `ship:deviation:${shipId}:${route.id}`,
+        JSON.stringify({ deviation, routeId: route.id, routeName: route.name, timestamp: new Date().toISOString() }),
+      );
+
+      if (rules.length === 0) {
+        continue;
+      }
+
+      const matchingRule = rules.find(rule => deviation > rule.deviationThreshold);
+
+      if (matchingRule) {
+        const hasActiveAlert = await this.alertService.hasActiveDeviationAlert(shipId, route.id);
+
+        if (!hasActiveAlert) {
+          await this.alertService.create({
+            type: 'deviation',
+            level: matchingRule.level,
+            title: `航线偏离告警 - ${shipName}`,
+            message: `船舶 ${shipName} (${shipCode}) 偏离航线 ${route.name}，偏离距离: ${deviation.toFixed(1)} 米，超过阈值: ${matchingRule.deviationThreshold} 米`,
+            shipId,
+            shipName,
+            shipCode,
+            routeId: route.id,
+            routeName: route.name,
+            deviationDistance: deviation,
+            threshold: matchingRule.deviationThreshold,
+            latitude,
+            longitude,
+            ruleId: matchingRule.id,
+          });
+        }
+      } else {
+        const activeDeviationAlerts = await this.alertService.findActiveAlertsByShipIdAndRouteIdAndType(shipId, route.id, 'deviation');
+        for (const alert of activeDeviationAlerts) {
+          await this.alertService.resolve(alert.id, 'system', '船舶已回到航线范围内');
+        }
+      }
     }
 
-    const matchingRule = rules.find(rule => deviation > rule.deviationThreshold);
-
-    if (matchingRule) {
-      const hasActiveAlert = await this.alertService.hasActiveDeviationAlert(shipId);
-
-      if (!hasActiveAlert) {
-        await this.alertService.create({
-          type: 'deviation',
-          level: matchingRule.level,
-          title: `航线偏离告警 - ${shipName}`,
-          message: `船舶 ${shipName} (${shipCode}) 偏离航线 ${route.name}，偏离距离: ${deviation.toFixed(1)} 米，超过阈值: ${matchingRule.deviationThreshold} 米`,
-          shipId,
-          shipName,
-          shipCode,
-          routeId: route.id,
-          routeName: route.name,
-          deviationDistance: deviation,
-          threshold: matchingRule.deviationThreshold,
-          latitude,
-          longitude,
-          ruleId: matchingRule.id,
-        });
-      }
-    } else {
-      const activeDeviationAlerts = await this.alertService.findActiveAlertsByShipIdAndType(shipId, 'deviation');
-      for (const alert of activeDeviationAlerts) {
-        await this.alertService.resolve(alert.id, 'system', '船舶已回到航线范围内');
+    const allActiveAlerts = await this.alertService.findActiveAlertsByShipIdAndType(shipId, 'deviation');
+    for (const alert of allActiveAlerts) {
+      if (!activeRouteIds.has(alert.routeId)) {
+        await this.alertService.resolve(alert.id, 'system', '航线已失效');
       }
     }
   }

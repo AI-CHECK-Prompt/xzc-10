@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Alert, AlertType } from './alert.entity';
+import { Alert, AlertType, AlertStatus } from './alert.entity';
 import { CreateAlertDto, UpdateAlertDto } from './alert.dto';
 
 @Injectable()
@@ -122,10 +122,25 @@ export class AlertService {
     return { total, active, acknowledged, resolved, byLevel };
   }
 
-  async hasActiveDeviationAlert(shipId: string): Promise<boolean> {
-    const count = await this.alertRepository.count({
-      where: { shipId, type: 'deviation', status: 'active' },
-    });
+  async hasActiveDeviationAlert(shipId: string, routeId?: string): Promise<boolean> {
+    const where: { shipId: string; type: AlertType; status: AlertStatus; routeId?: string } = {
+      shipId,
+      type: 'deviation',
+      status: 'active',
+    };
+
+    if (routeId) {
+      where.routeId = routeId;
+    }
+
+    const count = await this.alertRepository.count({ where });
     return count > 0;
+  }
+
+  async findActiveAlertsByShipIdAndRouteIdAndType(shipId: string, routeId: string, type: AlertType): Promise<Alert[]> {
+    return this.alertRepository.find({
+      where: { shipId, routeId, type, status: 'active' },
+      order: { createdAt: 'DESC' },
+    });
   }
 }
