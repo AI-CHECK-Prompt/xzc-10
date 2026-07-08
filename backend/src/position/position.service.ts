@@ -48,43 +48,47 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
     return R * c;
   }
 
-  private pointToLineDistance(
-    px: number,
-    py: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
+  private calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const λ1 = (lon1 * Math.PI) / 180;
+    const λ2 = (lon2 * Math.PI) / 180;
+    const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+    return Math.atan2(y, x);
+  }
+
+  private pointToSegmentDistance(
+    pointLat: number,
+    pointLon: number,
+    startLat: number,
+    startLon: number,
+    endLat: number,
+    endLon: number,
   ): number {
-    const A = px - x1;
-    const B = py - y1;
-    const C = x2 - x1;
-    const D = y2 - y1;
+    const R = 6371000;
+    const d13 = this.calculateDistance(startLat, startLon, pointLat, pointLon);
+    const d12 = this.calculateDistance(startLat, startLon, endLat, endLon);
 
-    const dot = A * C + B * D;
-    const lenSq = C * C + D * D;
-    let param = -1;
-
-    if (lenSq !== 0) {
-      param = dot / lenSq;
+    if (d12 < 1) {
+      return d13;
     }
 
-    let xx, yy;
+    const θ12 = this.calculateBearing(startLat, startLon, endLat, endLon);
+    const θ13 = this.calculateBearing(startLat, startLon, pointLat, pointLon);
 
-    if (param < 0) {
-      xx = x1;
-      yy = y1;
-    } else if (param > 1) {
-      xx = x2;
-      yy = y2;
-    } else {
-      xx = x1 + param * C;
-      yy = y1 + param * D;
+    const dxt = Math.asin(Math.sin(d13 / R) * Math.sin(θ13 - θ12)) * R;
+    const dat = Math.acos(Math.cos(d13 / R) / Math.cos(dxt / R)) * R;
+
+    if (dat < 0) {
+      return d13;
     }
 
-    const dx = px - xx;
-    const dy = py - yy;
-    return Math.sqrt(dx * dx + dy * dy);
+    if (dat > d12) {
+      return this.calculateDistance(endLat, endLon, pointLat, pointLon);
+    }
+
+    return Math.abs(dxt);
   }
 
   private calculateDeviationFromRoute(
@@ -96,20 +100,20 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
       return 0;
     }
 
-    const sortedWaypoints = [...waypoints].sort((a, b) => a.order - b.order);
+    const sortedWaypoints = [...waypoints].sort((a, b) => (a.order || 0) - (b.order || 0));
     let minDistance = Infinity;
 
     for (let i = 0; i < sortedWaypoints.length - 1; i++) {
       const wp1 = sortedWaypoints[i];
       const wp2 = sortedWaypoints[i + 1];
 
-      const distance = this.pointToLineDistance(
-        longitude,
+      const distance = this.pointToSegmentDistance(
         latitude,
-        wp1.longitude,
+        longitude,
         wp1.latitude,
-        wp2.longitude,
+        wp1.longitude,
         wp2.latitude,
+        wp2.longitude,
       );
 
       if (distance < minDistance) {
