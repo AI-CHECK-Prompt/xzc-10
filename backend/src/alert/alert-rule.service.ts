@@ -64,11 +64,14 @@ export class AlertRuleService {
   }
 
   async getRulesForShip(shipId: string): Promise<AlertRule[]> {
-    return this.alertRuleRepository.find({
-      where: [
-        { shipId, enabled: true },
-        { shipId: null, enabled: true },
-      ],
+    const shipSpecificRules = await this.alertRuleRepository.find({
+      where: { shipId, enabled: true },
+      order: { deviationThreshold: 'ASC' },
     });
+    const globalRules = await this.alertRuleRepository.find({
+      where: { shipId: null, enabled: true },
+      order: { deviationThreshold: 'ASC' },
+    });
+    return [...shipSpecificRules, ...globalRules];
   }
 }
