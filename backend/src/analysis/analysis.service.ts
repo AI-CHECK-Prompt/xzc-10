@@ -246,8 +246,26 @@ export class AnalysisService {
       .getRawMany();
 
     const totalAlerts = await query.getCount();
-    const activeAlerts = await this.alertRepository.count({ where: { status: 'active' } });
-    const resolvedAlerts = await this.alertRepository.count({ where: { status: 'resolved' } });
+
+    const activeQuery = this.alertRepository.createQueryBuilder('alert');
+    if (startDate) {
+      activeQuery.where('alert.createdAt >= :startDate', { startDate });
+    }
+    if (endDate) {
+      activeQuery.andWhere('alert.createdAt <= :endDate', { endDate });
+    }
+    activeQuery.andWhere('alert.status = :status', { status: 'active' });
+    const activeAlerts = await activeQuery.getCount();
+
+    const resolvedQuery = this.alertRepository.createQueryBuilder('alert');
+    if (startDate) {
+      resolvedQuery.where('alert.resolvedAt >= :startDate', { startDate });
+    }
+    if (endDate) {
+      resolvedQuery.andWhere('alert.resolvedAt <= :endDate', { endDate });
+    }
+    resolvedQuery.andWhere('alert.status = :status', { status: 'resolved' });
+    const resolvedAlerts = await resolvedQuery.getCount();
 
     return {
       dailyData: dailyData.map((item) => ({
@@ -260,11 +278,11 @@ export class AnalysisService {
     };
   }
 
-  async getOverallDashboard(): Promise<any> {
+  async getOverallDashboard(startDate?: string, endDate?: string): Promise<any> {
     const [summary, deviationStats, alertTrend] = await Promise.all([
       this.getRouteExecutionSummary(),
       this.getDeviationStatistics(),
-      this.getAlertTrend(),
+      this.getAlertTrend(startDate, endDate),
     ]);
 
     return {

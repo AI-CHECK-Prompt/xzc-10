@@ -190,7 +190,12 @@ export interface AnalysisDashboard {
 }
 
 export const analysisApi = {
-  getDashboard: () => api.get<AnalysisDashboard>('/analysis/dashboard'),
+  getDashboard: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    return api.get<AnalysisDashboard>(`/analysis/dashboard?${params.toString()}`);
+  },
   getRouteSummary: () => api.get('/analysis/routes/summary'),
   getRouteAnalysis: (routeId: string) => api.get(`/analysis/routes/${routeId}`),
   getShipAnalysis: (shipId: string) => api.get(`/analysis/ships/${shipId}`),

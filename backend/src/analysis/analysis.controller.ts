@@ -6,8 +6,11 @@ export class AnalysisController {
   constructor(private readonly analysisService: AnalysisService) {}
 
   @Get('dashboard')
-  getOverallDashboard() {
-    return this.analysisService.getOverallDashboard();
+  getOverallDashboard(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.analysisService.getOverallDashboard(startDate, endDate);
   }
 
   @Get('routes/summary')

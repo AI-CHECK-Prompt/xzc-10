@@ -1,26 +1,68 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnalysisDashboard as DashboardType, analysisApi } from '../api';
+
+type TimeRangeType = '7days' | '30days' | 'custom';
 
 function AnalysisDashboard() {
   const [dashboard, setDashboard] = useState<DashboardType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<TimeRangeType>('7days');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const calculateDateRange = useCallback((type: TimeRangeType) => {
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    let start = new Date();
+    
+    switch (type) {
+      case '7days':
+        start.setDate(end.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+        return { start: start.toISOString(), end: end.toISOString() };
+      case '30days':
+        start.setDate(end.getDate() - 29);
+        start.setHours(0, 0, 0, 0);
+        return { start: start.toISOString(), end: end.toISOString() };
+      case 'custom':
+        const customStart = startDate 
+          ? new Date(startDate + 'T00:00:00.000')
+          : new Date(end.getTime());
+        const customEnd = endDate 
+          ? new Date(endDate + 'T23:59:59.999')
+          : new Date(end.getTime());
+        customStart.setHours(0, 0, 0, 0);
+        customEnd.setHours(23, 59, 59, 999);
+        return { start: customStart.toISOString(), end: customEnd.toISOString() };
+    }
+  }, [startDate, endDate]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async (start?: string, end?: string) => {
     setLoading(true);
     try {
-      const res = await analysisApi.getDashboard();
+      const res = await analysisApi.getDashboard(start, end);
       setDashboard(res.data);
     } catch (error) {
       console.error('加载分析数据失败:', error);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const { start, end } = calculateDateRange(timeRange);
+    loadData(start, end);
+
+    const interval = setInterval(() => {
+      const { start: s, end: e } = calculateDateRange(timeRange);
+      loadData(s, e);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [timeRange, startDate, endDate, loadData, calculateDateRange]);
+
+  const handleTimeRangeChange = (type: TimeRangeType) => {
+    setTimeRange(type);
   };
 
   const getCompletionRateColor = (rate: number) => {
@@ -54,6 +96,7 @@ function AnalysisDashboard() {
   }
 
   const { summary, deviationStats, alertTrend } = dashboard;
+  const currentDateRange = calculateDateRange(timeRange);
 
   return (
     <div>
@@ -62,6 +105,50 @@ function AnalysisDashboard() {
         <p style={{ color: '#7f8c8d', marginTop: '5px' }}>
           航线执行分析与偏离统计，数据每30秒自动刷新
         </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+        <span style={{ color: '#7f8c8d' }}>时间范围：</span>
+        <button
+          className={`btn ${timeRange === '7days' ? 'btn-primary' : 'btn-default'}`}
+          onClick={() => handleTimeRangeChange('7days')}
+        >
+          近7天
+        </button>
+        <button
+          className={`btn ${timeRange === '30days' ? 'btn-primary' : 'btn-default'}`}
+          onClick={() => handleTimeRangeChange('30days')}
+        >
+          近30天
+        </button>
+        <button
+          className={`btn ${timeRange === 'custom' ? 'btn-primary' : 'btn-default'}`}
+          onClick={() => handleTimeRangeChange('custom')}
+        >
+          自定义
+        </button>
+        {timeRange === 'custom' && (
+          <>
+            <input
+              type="date"
+              className="form-control"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ width: '150px' }}
+            />
+            <span style={{ color: '#7f8c8d' }}>至</span>
+            <input
+              type="date"
+              className="form-control"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ width: '150px' }}
+            />
+          </>
+        )}
+        <span style={{ color: '#7f8c8d', marginLeft: '10px', fontSize: '12px' }}>
+          当前筛选：{currentDateRange.start} ~ {currentDateRange.end}
+        </span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '20px' }}>
@@ -78,7 +165,7 @@ function AnalysisDashboard() {
           <div style={{ color: '#7f8c8d', marginTop: '5px' }}>已完成</div>
         </div>
         <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f39c12' }}>{summary.activeAlerts}</div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f39c12' }}>{alertTrend.activeAlerts}</div>
           <div style={{ color: '#7f8c8d', marginTop: '5px' }}>活跃告警</div>
         </div>
       </div>
@@ -274,6 +361,11 @@ function AnalysisDashboard() {
             <span style={{ color: '#2c3e50', fontWeight: 'bold' }}>{alertTrend.totalAlerts}</span>
             <span style={{ color: '#7f8c8d', marginLeft: '5px' }}>总告警</span>
           </div>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+          <span style={{ color: '#95a5a6', fontSize: '12px' }}>
+            统计口径：活跃告警 = 选定时间范围内新增且当前仍活跃的告警；已解决告警 = 选定时间范围内状态变更为已解决的告警
+          </span>
         </div>
       </div>
     </div>
