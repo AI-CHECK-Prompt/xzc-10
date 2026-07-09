@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Alert, AlertType, AlertStatus } from './alert.entity';
 import { CreateAlertDto, UpdateAlertDto } from './alert.dto';
 
@@ -142,5 +142,17 @@ export class AlertService {
       where: { shipId, routeId, type, status: 'active' },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async resolveAlertsByRouteId(routeId: string): Promise<void> {
+    await this.alertRepository.update(
+      { routeId, status: In(['active', 'acknowledged']) },
+      {
+        status: 'resolved',
+        resolvedAt: new Date(),
+        resolvedBy: 'system',
+        resolutionNote: '关联航线已删除，告警自动关闭',
+      },
+    );
   }
 }

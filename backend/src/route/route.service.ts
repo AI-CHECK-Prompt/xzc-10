@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, getConnection } from 'typeorm';
 import { Route } from './route.entity';
 import { CreateRouteDto, UpdateRouteDto } from './route.dto';
 import { ShipService } from '../ship/ship.service';
+import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class RouteService {
@@ -11,6 +12,7 @@ export class RouteService {
     @InjectRepository(Route)
     private routeRepository: Repository<Route>,
     private shipService: ShipService,
+    private alertService: AlertService,
   ) {}
 
   async findAll(): Promise<Route[]> {
@@ -82,6 +84,20 @@ export class RouteService {
 
   async delete(id: string): Promise<void> {
     const route = await this.findOne(id);
-    await this.routeRepository.remove(route);
+
+    await getConnection().transaction(async (transactionalEntityManager) => {
+      await transactionalEntityManager.update(
+        'alerts',
+        { routeId: id, status: ['active', 'acknowledged'] },
+        {
+          status: 'resolved',
+          resolvedAt: new Date(),
+          resolvedBy: 'system',
+          resolutionNote: '关联航线已删除，告警自动关闭',
+        },
+      );
+
+      await transactionalEntityManager.remove(route);
+    });
   }
 }
