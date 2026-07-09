@@ -11,14 +11,19 @@ export class PositionController {
     return this.positionService.updatePosition(shipPositionDto);
   }
 
-  @Get(':shipId')
-  getPosition(@Param('shipId') shipId: string): Promise<any> {
-    return this.positionService.getPosition(shipId);
-  }
-
   @Get()
   getAllPositions(): Promise<any[]> {
     return this.positionService.getAllPositions();
+  }
+
+  @Get('deviation/all')
+  getAllDeviations(): Promise<any[]> {
+    return this.positionService.getAllDeviations();
+  }
+
+  @Get(':shipId')
+  getPosition(@Param('shipId') shipId: string): Promise<any> {
+    return this.positionService.getPosition(shipId);
   }
 
   @Get(':shipId/history')
@@ -29,10 +34,5 @@ export class PositionController {
   @Get(':shipId/deviation')
   getDeviation(@Param('shipId') shipId: string): Promise<any> {
     return this.positionService.getDeviation(shipId);
-  }
-
-  @Get('deviation/all')
-  getAllDeviations(): Promise<any[]> {
-    return this.positionService.getAllDeviations();
   }
 }

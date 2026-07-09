@@ -139,8 +139,8 @@ export class AnalysisService {
     let totalDeviation = 0;
     let maxDeviation = 0;
     for (const route of routes) {
-      const routeDeviations = await this.positionService.getDeviation(route.shipId);
-      for (const rd of routeDeviations) {
+      const routeDeviationResult = await this.positionService.getDeviation(route.shipId);
+      for (const rd of routeDeviationResult.deviations) {
         if (rd.routeId === route.id) {
           totalDeviation += rd.deviation;
           if (rd.deviation > maxDeviation) {
@@ -191,7 +191,7 @@ export class AnalysisService {
       const alerts = await this.alertRepository.find({ where: { shipId: ship.id } });
       const activeAlerts = alerts.filter((a) => a.status === 'active');
 
-      const deviationValues = deviations.map((d) => d.deviation || 0);
+      const deviationValues = deviations.deviations.map((d) => d.deviation || 0);
       const currentDeviation = deviationValues.length > 0 ? Math.max(...deviationValues) : 0;
       const avgDeviation = deviationValues.length > 0 
         ? deviationValues.reduce((a, b) => a + b, 0) / deviationValues.length 

@@ -297,7 +297,7 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
     return historyStr.map((item) => JSON.parse(item as string)).reverse();
   }
 
-  async getDeviation(shipId: string): Promise<any[]> {
+  async getDeviation(shipId: string): Promise<{ deviations: any[]; hasRoutes: boolean }> {
     const keys = await this.scanKeys(`ship:deviation:${shipId}:*`);
     const deviations = [];
 
@@ -313,7 +313,12 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    return deviations.length > 0 ? deviations : [{ deviation: 0, timestamp: null, routeId: null }];
+    const routeCount = await this.routeRepository.count({ where: { shipId } });
+
+    return {
+      deviations,
+      hasRoutes: routeCount > 0,
+    };
   }
 
   async getAllDeviations(): Promise<any[]> {
