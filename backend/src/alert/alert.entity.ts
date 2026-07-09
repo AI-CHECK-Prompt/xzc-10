@@ -1,5 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, JoinColumn } from 'typeorm';
 import { AlertLevel } from './alert-rule.entity';
+import { AlertEscalationRecord } from './alert-escalation-record.entity';
 export { AlertLevel } from './alert-rule.entity';
 
 export type AlertStatus = 'active' | 'acknowledged' | 'resolved';
@@ -15,6 +16,9 @@ export class Alert {
 
   @Column({ type: 'enum', enum: ['low', 'medium', 'high', 'critical'], default: 'medium' })
   level: AlertLevel;
+
+  @Column({ type: 'enum', enum: ['low', 'medium', 'high', 'critical'], nullable: true })
+  initialLevel?: AlertLevel;
 
   @Column({ type: 'enum', enum: ['active', 'acknowledged', 'resolved'], default: 'active' })
   status: AlertStatus;
@@ -69,6 +73,28 @@ export class Alert {
 
   @Column({ nullable: true })
   resolutionNote: string;
+
+  @Column({ nullable: true })
+  escalationConfigId: string;
+
+  @Column({ nullable: true })
+  lastEscalationAt: Date;
+
+  @Column({ nullable: true })
+  escalationChainId: string;
+
+  @Column({ nullable: true })
+  lastNotificationAt: Date;
+
+  @Column({ nullable: true })
+  assigneeId: string;
+
+  @Column({ nullable: true })
+  assigneeName: string;
+
+  @OneToMany(() => AlertEscalationRecord, record => record.alert, { cascade: ['insert', 'update'] })
+  @JoinColumn({ name: 'alertId' })
+  escalationRecords: AlertEscalationRecord[];
 
   @CreateDateColumn()
   createdAt: Date;

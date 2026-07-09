@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-store';
+import { ScheduleModule } from '@nestjs/schedule';
 import { typeOrmConfig } from './config/typeorm.config';
-import { redisConfig } from './config/redis.config';
 import { ShipModule } from './ship/ship.module';
 import { RouteModule } from './route/route.module';
 import { PositionModule } from './position/position.module';
@@ -13,12 +12,10 @@ import { AnalysisModule } from './analysis/analysis.module';
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmConfig),
-    CacheModule.registerAsync({
-      useFactory: async () => ({
-        store: await redisStore(redisConfig),
-      }),
+    CacheModule.register({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     ShipModule,
     RouteModule,
     PositionModule,

@@ -1,15 +1,23 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
 import { AlertService } from './alert.service';
+import { AlertEscalationService } from './alert-escalation.service';
 import { CreateAlertDto, UpdateAlertDto } from './alert.dto';
 import { Alert } from './alert.entity';
+import { AlertEscalationRecord } from './alert-escalation-record.entity';
+import { AlertLevel } from './alert-rule.entity';
 
 @Controller('alerts')
 export class AlertController {
-  constructor(private readonly alertService: AlertService) {}
+  constructor(
+    private readonly alertService: AlertService,
+    private readonly escalationService: AlertEscalationService,
+  ) {}
 
   @Post()
-  create(@Body() createAlertDto: CreateAlertDto): Promise<Alert> {
-    return this.alertService.create(createAlertDto);
+  async create(@Body() createAlertDto: CreateAlertDto): Promise<Alert> {
+    const alert = await this.alertService.create(createAlertDto);
+    await this.escalationService.initializeEscalation(alert);
+    return alert;
   }
 
   @Get()
@@ -70,5 +78,30 @@ export class AlertController {
   @Get('stats/all')
   getAlertStats() {
     return this.alertService.getAlertStats();
+  }
+
+  @Put(':id/escalate')
+  async escalate(
+    @Param('id') id: string,
+    @Body() body: { level: string; operatorId?: string; operatorName?: string; reason?: string },
+  ): Promise<Alert> {
+    const validLevels: AlertLevel[] = ['low', 'medium', 'high', 'critical'];
+    if (!validLevels.includes(body.level as AlertLevel)) {
+      throw new BadRequestException(`无效的告警等级: ${body.level}`);
+    }
+    return this.escalationService.manualEscalate(id, body.level as AlertLevel, body.operatorId, body.operatorName, body.reason);
+  }
+
+  @Put(':id/assignee')
+  async updateAssignee(
+    @Param('id') id: string,
+    @Body() body: { assigneeId: string; assigneeName: string },
+  ): Promise<Alert> {
+    return this.escalationService.updateAssignee(id, body.assigneeId, body.assigneeName);
+  }
+
+  @Get(':id/escalation-records')
+  getEscalationRecords(@Param('id') id: string): Promise<AlertEscalationRecord[]> {
+    return this.escalationService.getEscalationRecords(id);
   }
 }

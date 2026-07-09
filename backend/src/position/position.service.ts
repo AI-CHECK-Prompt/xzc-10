@@ -260,7 +260,7 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
 
   private async scanKeys(pattern: string): Promise<string[]> {
     const keys: string[] = [];
-    let cursor = '0';
+    let cursor: number = 0;
 
     do {
       const scanResult = await this.redisClient.scan(cursor, {
@@ -269,7 +269,7 @@ export class PositionService implements OnModuleInit, OnModuleDestroy {
       });
       cursor = scanResult.cursor;
       keys.push(...scanResult.keys);
-    } while (cursor !== '0');
+    } while (cursor !== 0);
 
     return keys;
   }
